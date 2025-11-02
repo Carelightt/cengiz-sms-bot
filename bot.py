@@ -340,7 +340,7 @@ def main() -> None:
 
 if __name__ == '__main__':
     veri_yukle() # Bot başlamadan önce verileri yükle
-<<<<<<< HEAD
+    
     main()
 =======
     main()
