@@ -81,6 +81,13 @@ def mesajdan_tel_no_bul(mesaj_metni: str) -> str | None:
         return eslesme.group(1)
     return None
 
+def mesajdan_bilgi_al(mesaj_metni: str, anahtar: str) -> str | None:
+    """Mesaj metninden belirli bir anahtara ait değeri bulur."""
+    eslesme = re.search(rf'{anahtar}:\s*(.*?)(?:\n|$)', mesaj_metni, re.IGNORECASE)
+    if eslesme:
+        return eslesme.group(1).strip()
+    return None
+
 # Yetki kontrol decorator'ı
 def yetkili_mi(func):
     """Sadece YETKILI_KULLANICI_ID'nin komutları çalıştırmasına izin veren decorator."""
@@ -251,6 +258,27 @@ async def sms_isleyici_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         logger.warning(f"User-bot'tan gelen mesajda telefon numarası bulunamadı: {mesaj_metni[:50]}")
         return
 
+    # SMS metninden istenen bilgileri çek
+    uygulama_adi = mesajdan_bilgi_al(mesaj_metni, "Uygulama Adı")
+    mesaj_icerigi = mesajdan_bilgi_al(mesaj_metni, "Mesaj")
+    kod = mesajdan_bilgi_al(mesaj_metni, "Kod")
+    saat = mesajdan_bilgi_al(mesaj_metni, "Saat")
+
+    # Yeni formatta mesaj oluştur
+    # Kod varsa tıkla kopyala olarak ekle
+    yeni_mesaj = "✅ YENİ SMS GELDİ\n\n"
+    if uygulama_adi:
+        yeni_mesaj += f"Uygulama Adı: {uygulama_adi}\n"
+    if tel_no: # tel_no'yu zaten en başta bulduk
+        yeni_mesaj += f"Tel No: {tel_no}\n"
+    if mesaj_icerigi:
+        yeni_mesaj += f"Mesaj: {mesaj_icerigi}\n"
+    if kod:
+        yeni_mesaj += f"Kod: `{kod}`\n" # Tıkla kopyala için ters tırnaklar arasına alındı
+    if saat:
+        yeni_mesaj += f"Saat: {saat}\n"
+
+
     yonlendirildi = False
 
     for hedef_grup_id, numaralar_seti in beklenen_numaralar.items():
@@ -261,7 +289,7 @@ async def sms_isleyici_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             try:
                 await context.bot.send_message(
                     chat_id=hedef_grup_id,
-                    text=f"✅ YENİ SMS GELDİ\n\n Telefon Numarası: {tel_no}\n\n---\n\n{mesaj_metni}",
+                    text=yeni_mesaj, # Yeni oluşturulan mesaj gönderiliyor
                     parse_mode=telegram.constants.ParseMode.MARKDOWN
                 )
                 logger.info(f"Numara {tel_no} için SMS, hedef grup ID {hedef_grup_id}'ye yönlendirildi.")
