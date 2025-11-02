@@ -127,8 +127,7 @@ if __name__ == '__main__':
     try:
         asyncio.run(main_user_bot()) # Asenkron ana fonksiyonu çalıştır
     except Exception as e:
-<<<<<<< HEAD
+        
         logger.error(f"User-bot çalışırken kritik bir hata oluştu: {e}")
 =======
         logger.error(f"User-bot çalışırken kritik bir hata oluştu: {e}")
->>>>>>> 8e96621deb33d90e2791dcc668c583423ddec0d0
