@@ -2,11 +2,10 @@ import os
 import asyncio
 import logging
 from dotenv import load_dotenv
-from pyrogram import Client, filters
-from pyrogram.types import Message, Update
+from pyrogram import Client
 from pyrogram.errors import FloodWait
-from pyrogram.raw.types import UpdateNewMessage, UpdateNewChannelMessage # Ham mesaj tiplerini almak için
 import re
+import time
 
 # .env dosyasını yükle
 load_dotenv()
@@ -50,69 +49,75 @@ def mesajdan_tel_no_bul(mesaj_metni: str) -> str | None:
         return eslesme.group(1)
     return None
 
-# --- User-Bot RAW Update Dinleyicisi ---
-@user_app.on_raw_update()
-async def raw_update_handler(client: Client, update: Update, users, chats):
+# --- User-Bot Ana Polling Fonksiyonu ---
+async def start_message_polling():
     """
-    Telegram'dan gelen tüm ham güncellemeleri yakalar ve loglar.
-    Mesajları manuel olarak filtreler ve Ana Bot'a iletir.
+    Belirli aralıklarla Kaynak Grup'taki yeni mesajları kontrol eder
+    ve @smsbizdenbot'tan gelenleri Ana Bot'a iletir.
     """
-    logger.info(f"--- ÇOK AGRESİF RAW DEBUG: Ham Güncelleme Alındı: {type(update).__name__}")
-    
-    # Gelen güncellemenin bir mesaj içerip içermediğini kontrol et
-    message = None
-    if isinstance(update, (UpdateNewMessage, UpdateNewChannelMessage)):
-        raw_message = update.message
-        if hasattr(raw_message, 'chat') and hasattr(raw_message, 'message'):
-            # Pyrogram mesaj objesine çevir
-            message = await Message.parse(client, raw_message, users, chats)
+    last_checked_message_id = 0 # En son kontrol edilen mesajın ID'si
+    polling_interval = 5 # Her 5 saniyede bir kontrol et
 
-    if message:
-        # --- AGGRESSIVE DEBUG BAŞLANGIÇ (Mesaj objesi oluşturulabildiyse) ---
-        logger.info(f"--- RAW AGGRESSIVE DEBUG: Pyrogram Message objesi oluşturuldu.")
-        logger.info(f"Chat ID: {message.chat.id}")
-        logger.info(f"Chat Type: {message.chat.type}")
-        logger.info(f"Chat Title: {message.chat.title}")
-        logger.info(f"Gönderen ID: {message.from_user.id if message.from_user else 'Yok'}")
-        logger.info(f"Gönderen Username: {message.from_user.username if message.from_user else 'Yok'}")
-        logger.info(f"Mesaj Metni: {message.text[:100] if message.text else 'Yok'}...")
-        logger.info(f"Mesaj Tarihi: {message.date.isoformat()}")
-        
-        # Şimdi asıl filtreleri burada manuel olarak kontrol edelim
-        # 1. Kaynak Grup'tan mı geldi?
-        if message.chat.id != KAYNAK_GRUP_ID:
-            logger.warning(f"RAW AGGRESSIVE DEBUG: Mesaj Kaynak Gruptan (Beklenen ID: {KAYNAK_GRUP_ID}) gelmedi. Geldiği yer: {message.chat.title} (ID: {message.chat.id}). Yoksayılıyor.")
-            return # Kaynak Grup değilse hemen çık
-        
-        # 2. @smsbizdenbot'tan mı geldi?
-        if (message.from_user is None) or (message.from_user.id != SMS_BOT_ID):
-            logger.warning(f"RAW AGGRESSIVE DEBUG: Mesaj @smsbizdenbot'tan (Beklenen ID: {SMS_BOT_ID}) gelmedi. Gönderen ID: {message.from_user.id if message.from_user else 'Yok'}. Yoksayılıyor.")
-            return # SMS botundan gelmediyse hemen çık
-            
-        # 3. Metin mesajı mı?
-        if not message.text:
-            logger.warning("RAW AGGRESSIVE DEBUG: Mesaj metin formatında değil. Yoksayılıyor.")
-            return # Metin mesajı değilse hemen çık
-        # --- AGGRESSIVE DEBUG BİTTİ ---
+    logger.info(f"User-bot mesaj polling'i başlatılıyor. Kaynak Grup ID: {KAYNAK_GRUP_ID}, SMS Bot ID: {SMS_BOT_ID}")
 
-        # Eğer tüm filtreleri geçtiyse, Ana Bot'a ilet
-        logger.info(f"User-bot mesajı yakaladı - Kaynak Grup ID: {message.chat.id}, Kimden: {message.from_user.username}, Metin: {message.text[:50]}...")
-
-        mesaj_metni = message.text
-        
+    while True:
         try:
-            await client.send_message(
-                chat_id=f"@{ANA_BOT_USERNAME}", # Ana Bot'un kullanıcı adı
-                text=mesaj_metni
-            )
-            logger.info(f"User-bot, SMS'i Ana Bot ({ANA_BOT_USERNAME})'a başarıyla iletti.")
+            logger.info(f"--- POLLING DEBUG: Yeni mesajlar için kontrol ediliyor. last_checked_message_id: {last_checked_message_id}")
+            
+            # Kaynak Grup'tan yeni mesajları çek
+            # min_id parametresi, sadece belirtilen ID'den büyük ID'ye sahip mesajları çeker.
+            # limit=100 ile birden fazla mesaj gelirse hepsini alabiliriz.
+            async for message in user_app.get_chat_history(chat_id=KAYNAK_GRUP_ID, limit=100, offset_id=last_checked_message_id):
+                
+                # Sadece mesaj ID'si bizim son kontrol ettiğimizden büyük olanları işle
+                if message.id > last_checked_message_id:
+                    logger.info(f"--- POLLING AGGRESSIVE DEBUG: Yeni mesaj bulundu (ID: {message.id}).")
+                    logger.info(f"Chat ID: {message.chat.id}")
+                    logger.info(f"Gönderen ID: {message.from_user.id if message.from_user else 'Yok'}")
+                    logger.info(f"Mesaj Metni: {message.text[:100] if message.text else 'Yok'}...")
+
+                    # 1. SMS Botu'ndan mı geldi?
+                    if message.from_user and message.from_user.id == SMS_BOT_ID:
+                        # 2. Metin mesajı mı?
+                        if message.text:
+                            logger.info(f"User-bot SMS'i yakaladı - Kaynak Grup ID: {message.chat.id}, Kimden: {message.from_user.username}, Metin: {message.text[:50]}...")
+                            
+                            mesaj_metni = message.text
+                            try:
+                                await user_app.send_message(
+                                    chat_id=f"@{ANA_BOT_USERNAME}", # Ana Bot'un kullanıcı adı
+                                    text=mesaj_metni
+                                )
+                                logger.info(f"User-bot, SMS'i Ana Bot ({ANA_BOT_USERNAME})'a başarıyla iletti.")
+                            except FloodWait as e:
+                                logger.warning(f"User-bot FloodWait hatası, {e.value} saniye bekleniyor...")
+                                await asyncio.sleep(e.value)
+                            except Exception as e:
+                                logger.error(f"User-bot SMS'i Ana Bot'a iletirken hata oluştu: {e}")
+                        else:
+                            logger.warning(f"POLLING AGGRESSIVE DEBUG: SMS botundan gelen mesaj metin formatında değil (ID: {message.id}). Yoksayılıyor.")
+                    else:
+                        logger.warning(f"POLLING AGGRESSIVE DEBUG: Mesaj SMS botundan gelmedi (Gönderen ID: {message.from_user.id if message.from_user else 'Yok'}). Yoksayılıyor.")
+                    
+                    # En son kontrol edilen mesaj ID'sini güncelle
+                    last_checked_message_id = max(last_checked_message_id, message.id)
+
+            # Eğer hiç mesaj gelmediyse ve last_checked_message_id hala 0 ise,
+            # bu, botun ilk başlatıldığında veya hiç yeni mesaj olmadığında
+            # en son ID'yi alması için yardımcı olur.
+            if last_checked_message_id == 0:
+                 # Grubun son mesajını çekip ID'sini al
+                async for message in user_app.get_chat_history(chat_id=KAYNAK_GRUP_ID, limit=1):
+                    last_checked_message_id = message.id
+                    logger.info(f"POLLING DEBUG: İlk kontrol için Kaynak Grup'un en son mesaj ID'si alındı: {last_checked_message_id}")
+
         except FloodWait as e:
             logger.warning(f"User-bot FloodWait hatası, {e.value} saniye bekleniyor...")
             await asyncio.sleep(e.value)
         except Exception as e:
-            logger.error(f"User-bot SMS'i Ana Bot'a iletirken hata oluştu: {e}")
-    else:
-        logger.info(f"--- ÇOK AGRESİF RAW DEBUG: Güncelleme mesaj içermiyor veya Pyrogram Message objesine dönüştürülemedi.")
+            logger.error(f"Mesajları kontrol ederken veya işlerken beklenmedik bir hata oluştu: {e}")
+        
+        await asyncio.sleep(polling_interval)
 
 # --- Ana Çalıştırma Fonksiyonu ---
 async def main_user_bot() -> None:
@@ -120,13 +125,12 @@ async def main_user_bot() -> None:
     await user_app.start()
     logger.info("User-bot (Pyrogram) başarıyla bağlandı ve dinlemede!")
     
-    await asyncio.Event().wait() # Sonsuz bekleme, user-bot'un kapanmamasını sağlar
+    # User-bot çalıştıktan sonra polling fonksiyonunu başlat
+    await start_message_polling()
 
 
 if __name__ == '__main__':
     try:
         asyncio.run(main_user_bot()) # Asenkron ana fonksiyonu çalıştır
     except Exception as e:
-        
-        logger.error(f"User-bot çalışırken kritik bir hata oluştu: {e}")
         logger.error(f"User-bot çalışırken kritik bir hata oluştu: {e}")
