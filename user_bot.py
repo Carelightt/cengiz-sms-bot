@@ -129,5 +129,4 @@ if __name__ == '__main__':
     except Exception as e:
         
         logger.error(f"User-bot çalışırken kritik bir hata oluştu: {e}")
-=======
         logger.error(f"User-bot çalışırken kritik bir hata oluştu: {e}")
