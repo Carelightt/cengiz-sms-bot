@@ -18,11 +18,20 @@ load_dotenv()
 # --- YAPILANDIRMA AYARLARI ---
 try:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
-    YETKILI_KULLANICI_ID = int(os.getenv('YETKILI_KULLANICI_ID'))
-    USER_BOT_ID = int(os.getenv('USER_BOT_ID')) # <<< YENİ EKLENEN SATIR
+    # --- YETKİLİ KULLANICI DEĞİŞİKLİĞİ BAŞLANGIÇ ---
+    # Virgülle ayrılmış ID'leri string olarak al
+    YETKILI_KULLANICI_IDS_STR = os.getenv('YETKILI_KULLANICI_IDS')
+    if not YETKILI_KULLANICI_IDS_STR:
+        raise ValueError("YETKILI_KULLANICI_IDS ortam değişkeni bulunamadı.")
+    
+    # String listeyi integer listeye çevir
+    YETKILI_KULLANICI_IDS = [int(id.strip()) for id in YETKILI_KULLANICI_IDS_STR.split(',') if id.strip()]
+    # --- YETKİLİ KULLANICI DEĞİŞİKLİĞİ BİTTİ ---
+    
+    USER_BOT_ID = int(os.getenv('USER_BOT_ID'))
 
-    if not all([BOT_TOKEN, YETKILI_KULLANICI_ID, USER_BOT_ID]): # <<< KONTROL GÜNCELLENDİ
-        raise ValueError("Ortam değişkenlerinin hepsi tanımlanmalıdır (BOT_TOKEN, YETKILI_KULLANICI_ID, USER_BOT_ID).")
+    if not all([BOT_TOKEN, YETKILI_KULLANICI_IDS, USER_BOT_ID]):
+        raise ValueError("Ortam değişkenlerinin hepsi tanımlanmalıdır (BOT_TOKEN, YETKILI_KULLANICI_IDS, USER_BOT_ID).")
 
 except (TypeError, ValueError) as e:
     print(f"HATA: Ortam değişkenleri doğru yüklenemedi. Detay: {e}")
@@ -90,9 +99,11 @@ def mesajdan_bilgi_al(mesaj_metni: str, anahtar: str) -> str | None:
 
 # Yetki kontrol decorator'ı
 def yetkili_mi(func):
-    """Sadece YETKILI_KULLANICI_ID'nin komutları çalıştırmasına izin veren decorator."""
+    """Sadece YETKILI_KULLANICI_IDS listesindekilerin komutları çalıştırmasına izin veren decorator."""
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user.id != YETKILI_KULLANICI_ID:
+        # --- YETKİLİ KULLANICI DEĞİŞİKLİĞİ ---
+        if update.effective_user.id not in YETKILI_KULLANICI_IDS:
+        # --- Değişiklik Bitti ---
             await update.message.reply_text(
                 "❌ Yetkiniz yoktur."
             )
@@ -180,7 +191,7 @@ async def aktif_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     if not aktif_numaralar:
         await update.message.reply_text("Bu grupta aktif numara bulunmamaktadır.")
-        return # <<< HATA BURADAYDI, RETURN YANLIŞ YERDEYDİ, ŞİMDİ DOĞRU YERDE.
+        return 
 
     mesaj = f"AKTİF NUMARALAR ({len(aktif_numaralar)} numara)\n\n"
     numara_listesi = sorted(list(aktif_numaralar))
@@ -194,9 +205,8 @@ async def aktif_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.info(f"Grup ID {grup_id}'ye aktif numaralar listesi gönderildi.")
 
 
-# --- /durum komutu /rapor olarak değiştirildi ---
 @yetkili_mi
-async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None: # Fonksiyon adı değişti
+async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     grup_id = update.message.chat_id
     rapor_data = sms_raporu.get(grup_id)
 
@@ -204,20 +214,20 @@ async def rapor_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Bu grupta henüz SMS kaydı bulunmamaktadır.")
         return
 
-    mesaj = "ANLIK SMS DURUM RAPORU \n\n" # Cevap metni AYNI KALDI
+    mesaj = "ANLIK SMS DURUM RAPORU \n\n"
     toplam_sms = 0
 
     for tel_no, count in sorted(rapor_data.items(), key=lambda item: item[1], reverse=True):
         mesaj += f"• {tel_no}: {count} SMS\n"
         toplam_sms += count
 
-    mesaj += f"\n--- \nToplam Gelen SMS: {toplam_sms}" # Cevap metni AYNI KALDI
+    mesaj += f"\n--- \nToplam Gelen SMS: {toplam_sms}"
 
     await update.message.reply_text(
         text=mesaj,
         parse_mode=telegram.constants.ParseMode.MARKDOWN
     )
-    logger.info(f"Grup ID {grup_id}'ye anlık durum raporu gönderildi.") # Log mesajı değişti (önemsiz)
+    logger.info(f"Grup ID {grup_id}'ye anlık durum raporu gönderildi.")
 
 
 @yetkili_mi
@@ -354,8 +364,8 @@ def main() -> None:
     application.add_handler(CommandHandler("ver", ver_komutu))
     application.add_handler(CommandHandler("sil", sil_komutu))
     application.add_handler(CommandHandler("silhepsi", sil_hepsi_komutu))
-    application.add_handler(CommandHandler("rapor", rapor_komutu)) # <-- /durum -> /rapor
-    application.add_handler(CommandHandler("aktif", aktif_komutu)) # <-- /aktif
+    application.add_handler(CommandHandler("rapor", rapor_komutu)) 
+    application.add_handler(CommandHandler("aktif", aktif_komutu))
     application.add_handler(CommandHandler("id", id_komutu))
 
     # SMS işleyiciyi ekle: Sadece User-bot'un ID'sinden (USER_BOT_ID) gelen mesajları dinle
