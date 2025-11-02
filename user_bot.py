@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 from dotenv import load_dotenv
-from pyrogram import Client
+from pyrogram import Client, filters
 from pyrogram.errors import FloodWait
 import re
 import time
@@ -13,8 +13,8 @@ load_dotenv()
 # --- YAPILANDIRMA AYARLARI ---
 try:
     API_ID = int(os.getenv('API_ID'))
-    API_HASH = os.getenv('API_HASH')
-    KAYNAK_GRUP_ID = int(os.getenv('KAYNAK_GRUP_ID'))
+    API_HASH = os.getenv('API_HASH'))
+    KAYNAK_GRUP_ID = int(os.getenv('KAYNAK_GRUP_ID')) # -3143296393 olarak kalmalı
     SMS_BOT_ID = int(os.getenv('SMS_BOT_ID'))
     ANA_BOT_USERNAME = os.getenv('ANA_BOT_USERNAME', 'CengizAtaySMSbot')
     PYROGRAM_SESSION_STRING = os.getenv('PYROGRAM_SESSION_STRING')
@@ -123,7 +123,25 @@ async def start_message_polling():
 async def main_user_bot() -> None:
     logger.info("User-bot (Pyrogram) başlatılıyor...")
     await user_app.start()
-    logger.info("User-bot (Pyrogram) başarıyla bağlandı ve dinlemede!")
+    logger.info("User-bot (Pyrogram) başarıyla bağlandı.")
+    
+    # --- YENİ EKLENEN KISIM ---
+    logger.info("Sohbet listesi (dialogs) yükleniyor... ('Peer id invalid' hatasını önlemek için)")
+    try:
+        # Botun üye olduğu sohbetleri çekiyoruz. limit=10 sadece cache'i doldurmak için.
+        dialog_count = 0
+        async for dialog in user_app.get_dialogs(limit=10):
+            logger.info(f"Dialog bulundu: {dialog.chat.title} (ID: {dialog.chat.id})")
+            dialog_count += 1
+        
+        if dialog_count == 0:
+            logger.warning("User-bot'un hiçbir sohbet listesi (dialog) bulunamadı. Lütfen hesabın en az bir gruba üye olduğundan emin olun.")
+        
+        logger.info("Sohbet listesi yüklendi. Polling başlatılıyor.")
+    except Exception as e:
+        logger.error(f"Sohbet listesi (dialogs) yüklenirken hata oluştu: {e}")
+        # Hata olsa bile devam etmeyi deneyelim, belki cache dolmuştur.
+    # --- YENİ EKLENEN KISIM BİTTİ ---
     
     # User-bot çalıştıktan sonra polling fonksiyonunu başlat
     await start_message_polling()
