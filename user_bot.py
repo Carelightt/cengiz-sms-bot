@@ -13,7 +13,7 @@ load_dotenv()
 # --- YAPILANDIRMA AYARLARI ---
 try:
     API_ID = int(os.getenv('API_ID'))
-    API_HASH = os.getenv('API_HASH'))
+    API_HASH = os.getenv('API_HASH') # <<< HATA BURADAYDI, FAZLA PARANTEZ KALDIRILDI
     KAYNAK_GRUP_ID = int(os.getenv('KAYNAK_GRUP_ID')) # -3143296393 olarak kalmalı
     SMS_BOT_ID = int(os.getenv('SMS_BOT_ID'))
     ANA_BOT_USERNAME = os.getenv('ANA_BOT_USERNAME', 'CengizAtaySMSbot')
@@ -65,8 +65,6 @@ async def start_message_polling():
             logger.info(f"--- POLLING DEBUG: Yeni mesajlar için kontrol ediliyor. last_checked_message_id: {last_checked_message_id}")
             
             # Kaynak Grup'tan yeni mesajları çek
-            # min_id parametresi, sadece belirtilen ID'den büyük ID'ye sahip mesajları çeker.
-            # limit=100 ile birden fazla mesaj gelirse hepsini alabiliriz.
             async for message in user_app.get_chat_history(chat_id=KAYNAK_GRUP_ID, limit=100, offset_id=last_checked_message_id):
                 
                 # Sadece mesaj ID'si bizim son kontrol ettiğimizden büyük olanları işle
