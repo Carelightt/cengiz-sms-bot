@@ -1,0 +1,6 @@
+python-telegram-bot
+pyrogram
+TgCrypto
+APScheduler
+python-dotenv
+pytz
