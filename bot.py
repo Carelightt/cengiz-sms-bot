@@ -17,25 +17,28 @@ load_dotenv()
 
 # --- YAPILANDIRMA AYARLARI ---
 try:
-    BOT_TOKEN = os.getenv('BOT_TOKEN')
-    # --- YETKİLİ KULLANICI DEĞİŞİKLİĞİ BAŞLANGIÇ ---
-    # Virgülle ayrılmış ID'leri string olarak al
-    YETKILI_KULLANICI_IDS_STR = os.getenv('YETKILI_KULLANICI_IDS')
-    if not YETKILI_KULLANICI_IDS_STR:
-        raise ValueError("YETKILI_KULLANICI_IDS ortam değişkeni bulunamadı.")
-    
-    # String listeyi integer listeye çevir
-    YETKILI_KULLANICI_IDS = [int(id.strip()) for id in YETKILI_KULLANICI_IDS_STR.split(',') if id.strip()]
-    # --- YETKİLİ KULLANICI DEĞİŞİKLİĞİ BİTTİ ---
-    
-    USER_BOT_ID = int(os.getenv('USER_BOT_ID'))
+    # Bu satırdaki görünmeyen karakteri temizledim
+    BOT_TOKEN = os.getenv('BOT_TOKEN')
+    
+    # --- YETKİLİ KULLANICI DEĞİŞİKLİĞİ BAŞLANGIÇ ---
+    # Virgülle ayrılmış ID'leri string olarak al
+    YETKILI_KULLANICI_IDS_STR = os.getenv('YETKILI_KULLANICI_IDS')
+    if not YETKILI_KULLANICI_IDS_STR:
+        raise ValueError("YETKILI_KULLANICI_IDS ortam değişkeni bulunamadı.")
+    
+    # String listeyi integer listeye çevir
+    YETKILI_KULLANICI_IDS = [int(id.strip()) for id in YETKILI_KULLANICI_IDS_STR.split(',') if id.strip()]
+    # --- YETKİLİ KULLANICI DEĞİŞİKLİĞİ BİTTİ ---
+    
+    # Bu satırdaki görünmeyen karakteri temizledim
+    USER_BOT_ID = int(os.getenv('USER_BOT_ID')) 
 
-    if not all([BOT_TOKEN, YETKILI_KULLANICI_IDS, USER_BOT_ID]):
-        raise ValueError("Ortam değişkenlerinin hepsi tanımlanmalıdır (BOT_TOKEN, YETKILI_KULLANICI_IDS, USER_BOT_ID).")
+    if not all([BOT_TOKEN, YETKILI_KULLANICI_IDS, USER_BOT_ID]):
+        raise ValueError("Ortam değişkenlerinin hepsi tanımlanmalıdır (BOT_TOKEN, YETKILI_KULLANICI_IDS, USER_BOT_ID).")
 
 except (TypeError, ValueError) as e:
-    print(f"HATA: Ortam değişkenleri doğru yüklenemedi. Detay: {e}")
-    exit(1) # Hata varsa botu durdur
+    print(f"HATA: Ortam değişkenleri doğru yüklenemedi. Detay: {e}")
+    exit(1) # Hata varsa botu durdur
 
 # --- KULLANICIYA ÖZEL AYARLAR ---
 # Gün sonu raporlarının gönderileceği ID
